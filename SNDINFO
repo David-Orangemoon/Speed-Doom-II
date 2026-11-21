@@ -1,4 +1,4 @@
-misc/countDown					audio/CDSTRT
-misc/countDownEnd				audio/CDEND
-misc/speedDoomLose				audio/ULOSE
-misc/speedDoomTimeUp			audio/TIMEUP
+misc/countDown					audio/COUNTDOWN.mp3
+misc/countDownEnd				audio/COUNTDOWN_END.mp3
+misc/speedDoomLose				audio/LOSE.mp3
+misc/speedDoomTimeUp			audio/TIME_UP.mp3
