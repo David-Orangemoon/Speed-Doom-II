@@ -1,0 +1,4 @@
+misc/countDown					audio/CDSTRT
+misc/countDownEnd				audio/CDEND
+misc/speedDoomLose				audio/ULOSE
+misc/speedDoomTimeUp			audio/TIMEUP

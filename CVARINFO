@@ -1,0 +1,6 @@
+server int speedDoomII_TimeMod = 5;
+server bool speedDoomII_EnemiesDropClocks = false;
+server int speedDoomII_ClockTimeAdder = 2;
+server int speedDoomII_ClockMin = 1;
+server int speedDoomII_ClockMax = 5;
+server int speedDoomII_ClockSpawnCurve = 30;

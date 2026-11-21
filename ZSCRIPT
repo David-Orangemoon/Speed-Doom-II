@@ -1,0 +1,388 @@
+version "4.0.0"
+
+//TIMERS
+class SpeedDoomTimer {
+	SpeedDoomMain mainHandler;
+	int ticksLeft;
+	
+	virtual String timeToString(int secondsLeft) {
+		int minutes = (secondsLeft / 60) % 60;
+		int seconds = secondsLeft % 60;
+		
+		//Little hour long easter egg
+		if (secondsLeft >= 3600) { return String.Format("%02d:%02d:%02d", (secondsLeft / 3600), minutes, seconds); }
+		else { return String.Format("%02d:%02d", minutes, seconds); }
+	}
+	
+	virtual void init() { ticksLeft = 35; }
+	virtual play void update(int secondsLeft, bool outOfTime) {}
+	
+	virtual ui HUDFont getFont() { return HUDFont.Create(smallfont); }
+	virtual ui void draw(HUDFont dFont, int secondsLeft, bool outOfTime) {}
+	
+	virtual bool canMove() { return true; }
+}
+
+class SpeedDoomCountdownTimer : SpeedDoomTimer {
+	override void init() {
+		ticksLeft = 105;
+		
+		//Stop the music and prepare the countdown
+		S_ChangeMusic("");
+		S_StartSound("misc/countDown", 0);
+	}
+
+	override void update(int secondsLeft, bool outOfTime) {
+		if (ticksLeft % 35 == 0) {
+			if (outOfTime) { S_StartSound("misc/countDownEnd", 0); }
+			else { S_StartSound("misc/countDown", 0); }
+		}
+		
+		//Check for the timer running out, if it did start the run
+		if (outOfTime) { mainHandler.changeTimer("SpeedDoomDeathTimer"); }
+	}
+	
+	override HUDFont getFont() { return HUDFont.Create(bigfont); }
+	override void draw(HUDFont dFont, int secondsLeft, bool outOfTime) {
+		int fontColour = Font.CR_GREEN;
+		if (secondsLeft == 2) { fontColour = Font.CR_GOLD; }
+		else if (secondsLeft == 1) { fontColour = Font.CR_RED; }
+	
+		Statusbar.DrawString(
+			dFont, secondsLeft.."",
+			(0, 50),
+			Statusbar.DI_SCREEN_CENTER_TOP | Statusbar.DI_TEXT_ALIGN_CENTER, fontColour
+		);
+	}
+	
+	override bool canMove() { return false; }
+}
+
+class SpeedDoomDeathTimer : SpeedDoomTimer {
+	float spread;
+	
+	override void init() {
+		//Ready the time and set the spread to 0
+		spread = 0;
+		ticksLeft = mainHandler.levelTime * 35;
+		
+		//Restart the music
+		S_ChangeMusic("*");
+	}
+
+	override void update(int secondsLeft, bool outOfTime) {
+		//Flashy Effects
+		if (secondsLeft <= 10 && spread < 3) { spread = min(spread + 0.1, 3); }
+		else if (spread > 0) { spread = max(spread - 0.1, 0); }
+		
+		//Once the timer runs out, kill the players
+		if (outOfTime) {
+			mainHandler.deathMessage = "TIME OUT!";
+			
+			for (int i = 0; i < players.Size(); i++) {
+				PlayerPawn player = players[i].mo;
+				
+				//If the player exists kill and fling them
+				if (player) {
+					player.DamageMobj(player, player, 99999, "TimeOut");
+					player.Vel.Z = 7.5;
+				}
+			}
+			
+			//Change to the dead timer which handles the death stuff
+			mainHandler.changeTimer("SpeedDoomDeadTimer");
+		}
+	}
+	
+	override void draw(HUDFont dFont, int secondsLeft, bool outOfTime) {
+		//Little hour long easter egg
+		String text = "TIME LEFT "..timeToString(secondsLeft);
+		
+		//Check to see if we need to draw multiple times
+		//We will not set fSeconds if we don't need to
+		int drawCount = 1;
+		if (spread != 0) { drawCount = 20; }
+		
+		//Check colours!
+		int fontColour = Font.CR_GOLD;
+		if (secondsLeft >= 60) { fontColour = Font.CR_GREEN; }
+		else if (secondsLeft <= 10) {
+			if (ticksLeft % 35 > 17) { fontColour = Font.CR_RED; }
+			else { fontColour = Font.CR_BRICK; }
+		}
+		
+		for (let i = drawCount - 1; i >= 0; i--) {
+			Vector2 drawPosition = (0, 50);
+			if (spread != 0) {
+				float trigTimer = (i * 3.5 + level.Time) * 2;
+				drawPosition.x += sin(trigTimer) * spread;
+				drawPosition.y += sin(trigTimer * 2) * spread;
+			}
+			
+			Statusbar.DrawString(
+				dFont, text,
+				drawPosition,
+				Statusbar.DI_SCREEN_CENTER_TOP | Statusbar.DI_TEXT_ALIGN_CENTER, fontColour,
+				1 - (double(i) / 20)
+			);
+		}
+	}
+}
+
+class SpeedDoomDeadTimer : SpeedDoomDeathTimer {
+	Vector2 textFall;
+
+	override void init() {
+		spread = 3;
+		ticksLeft = 280;
+		
+		//For the text fall animation
+		textFall = (0, -10);
+		
+		//Stop the music and play the lose noise
+		S_ChangeMusic("");
+		S_StartSound("misc/speedDoomLose", 0);
+	}
+	
+	override void update(int secondsLeft, bool outOfTime) {
+		textFall.y += 0.5;
+		textFall.x += textFall.y;
+		if (textFall.x >= 30) { 
+			textFall.x = 30;
+			textFall.y /= -2.5;
+		}
+	
+		if (!outOfTime) { super.update(0, false); }
+		else { mainHandler.changeTimer("SpeedDoomReviewTimer"); }
+	}
+	
+	override void draw(HUDFont dFont, int secondsLeft, bool outOfTime) {
+		Statusbar.DrawString(
+			HUDFont.Create(bigfont), mainHandler.deathMessage,
+			(0, textFall.x),
+			Statusbar.DI_SCREEN_CENTER_TOP | Statusbar.DI_TEXT_ALIGN_CENTER, Font.CR_WHITE
+		);
+		
+		super.draw(dFont, 0, false);
+	}
+	
+	override bool canMove() { return false; }
+}
+
+class SpeedDoomReviewTimer : SpeedDoomTimer {
+	override void init() {
+		ticksLeft = 525;
+		
+		//Play the lose music
+		S_ChangeMusic("D_GLST");
+	}
+	
+	override void update(int secondsLeft, bool outOfTime) {
+		for (int i = 0; i < players.Size(); i++) {
+			PlayerPawn player = players[i].mo;
+			
+			//If the player exists rotate them
+			if (player) {
+				player.A_SetAngle(player.angle + 1);
+			}
+		}
+		
+		//Loop back around to the first message
+		if (outOfTime) { ticksLeft = 525; }
+	}
+	
+	override void draw(HUDFont dFont, int secondsLeft, bool outOfTime) {
+		//Show the TIME OUT! text
+		Statusbar.DrawString(
+			HUDFont.Create(bigfont), mainHandler.deathMessage,
+			(0, 30),
+			Statusbar.DI_SCREEN_CENTER_TOP | Statusbar.DI_TEXT_ALIGN_CENTER, Font.CR_WHITE
+		);
+	
+		//Uhh... the UI system doesn't support multiline.
+		if (secondsLeft > 10) {
+			Statusbar.DrawString(
+					dFont, "You have died!",
+					(0, 50),
+					Statusbar.DI_SCREEN_CENTER_TOP | Statusbar.DI_TEXT_ALIGN_CENTER, Font.CR_RED
+			);
+			
+			Statusbar.DrawString(
+					dFont, "But you could have done better!",
+					(0, 60),
+					Statusbar.DI_SCREEN_CENTER_TOP | Statusbar.DI_TEXT_ALIGN_CENTER, Font.CR_GREEN
+			);
+		}
+		else if (secondsLeft > 5) {
+			Statusbar.DrawString(
+					dFont, String.Format("You had \cf%s", timeToString(mainHandler.levelTime)),
+					(0, 50),
+					Statusbar.DI_SCREEN_CENTER_TOP | Statusbar.DI_TEXT_ALIGN_CENTER, Font.CR_GREEN
+			);
+			
+			Statusbar.DrawString(
+					dFont, "to complete it!",
+					(0, 60),
+					Statusbar.DI_SCREEN_CENTER_TOP | Statusbar.DI_TEXT_ALIGN_CENTER, Font.CR_GREEN
+			);
+		}
+		else {
+			Statusbar.DrawString(
+					dFont, "Respawn to retry!",
+					(0, 55),
+					Statusbar.DI_SCREEN_CENTER_TOP | Statusbar.DI_TEXT_ALIGN_CENTER, Font.CR_LIGHTBLUE
+			);
+		}
+	}
+}
+
+//ACTORS
+class SpeedDoomTimePickup : Inventory {
+	SpeedDoomMain mainHandler;
+	float itemScale;
+	
+	Default { Inventory.PickupSound "misc/speedDoomTimeUp"; }
+	
+	States {
+		Spawn:
+			TCLK ABCDEFGHIJKL 6;
+			Loop;
+	}
+	
+	override void BeginPlay() { itemScale = 0; }
+	
+	override void Tick() {
+		super.Tick();
+		A_SetAngle(angle + 5);
+		
+		if (itemScale < 0.5) {
+			itemScale += 0.025;
+			A_SetScale(itemScale);
+		}
+	}
+	
+	override String PickupMessage () { return String.Format("Picked up %d seconds!", mainHandler.clockTimeAdder); }
+	override bool TryPickup (in out Actor other) {
+		if (mainHandler) {
+			mainHandler.addTime(mainHandler.clockTimeAdder);
+			GoAwayAndDie();
+			return true;
+		}
+		
+		return false;
+	}
+}
+
+//THE MAIN MANAGER
+class SpeedDoomMain : EventHandler {
+	SpeedDoomTimer currentTimer;
+	string deathMessage;
+	int levelTime;
+	
+	bool dropClocks;
+	int clockTimeAdder;
+	int clockMinDropped;
+	int clockMaxDropped;
+	float clockSpawnCurve;
+	
+	virtual void changeTimer(String newTimerType) {
+		if (currentTimer) { currentTimer.Destroy(); }
+		currentTimer = SpeedDoomTimer(New(newTimerType));
+		
+		currentTimer.mainHandler = self;
+		currentTimer.init();
+	}
+	
+	virtual void addTime(int time) {
+		if (currentTimer) {
+			currentTimer.ticksLeft += time * 35;
+			levelTime += time;
+		}
+	}
+	
+	override void WorldLoaded(WorldEvent e) {
+		//Determine level time and if we should spawn clocks,
+		//If we don't have a proper ParTime just do 1:30 per level.
+		if (level.ParTime != 0) {
+			levelTime = max(level.ParTime + CVar.GetCVar("speedDoomII_TimeMod").GetInt(), 10);
+			dropClocks = CVar.GetCVar("speedDoomII_EnemiesDropClocks").GetBool();
+		}
+		else {
+			levelTime = 90;
+			dropClocks = true;
+		}
+		
+		//Set clock settings
+		clockTimeAdder = CVar.GetCVar("speedDoomII_ClockTimeAdder").GetInt();
+		clockMinDropped = CVar.GetCVar("speedDoomII_ClockMin").GetInt();
+		clockMaxDropped = CVar.GetCVar("speedDoomII_ClockMax").GetInt();
+		clockSpawnCurve = CVar.GetCVar("speedDoomII_ClockSpawnCurve").GetFloat();
+		
+		//Start if we aren't a titlemap
+		deathMessage = "GAME OVER!";
+		if (level.Mapname != "TITLEMAP") { changeTimer("SpeedDoomCountdownTimer"); }
+	}
+	
+	//Now for the actual UI and logic code
+	override void WorldTick() {
+		//Tick down and call the timer's update function
+		if (currentTimer && currentTimer.ticksLeft > 0) {
+			currentTimer.ticksLeft--;
+			currentTimer.update(ceil(float(currentTimer.ticksLeft) / 35), currentTimer.ticksLeft <= 0);
+		}
+	}
+	
+	override void RenderOverlay(RenderEvent e) {
+		//Make sure the timer exists
+		if (currentTimer) {
+			//Begin hud drawing
+			Statusbar.BeginHUD();
+			currentTimer.draw(currentTimer.getFont(), ceil(float(currentTimer.ticksLeft) / 35), currentTimer.ticksLeft <= 0);
+		}
+	}
+	
+	//Check for when a player dies
+	override void WorldThingDied(WorldEvent e) {
+		//See if the thing that died is a player
+		if (e.thing) {
+			//If a player died do the death check.
+			if (e.thing.player) {
+				bool allDead = true;
+			
+				//Check to make sure all players are dead
+				for (int i = 0; i < players.Size(); i++) {
+					PlayerPawn player = players[i].mo;
+					if (player && player.health > 0) { allDead = false; }
+				}
+			
+				if (allDead) { changeTimer("SpeedDoomDeadTimer"); }
+			}
+			//If a monster dies and it is a monster drop time.
+			else if (e.thing.bIsMonster && dropClocks) {
+				Vector3 spawnPos = e.thing.pos + (0, 0, e.thing.height / 2);
+				int spawnedClocks = min(max(
+					sqrt(float(e.Thing.GetMaxHealth()) / clockSpawnCurve), //A nice curve for their spawn rate
+					clockMinDropped), clockMaxDropped //And the min and max
+				);
+				
+				for (int i = 0; i < spawnedClocks; i++) {
+					//Spawn and cast the object to SpeedDoomTimePickup
+					SpeedDoomTimePickup spawned = SpeedDoomTimePickup(Actor.Spawn(
+						"SpeedDoomTimePickup", 
+						spawnPos
+					));
+				
+					//Set variables
+					spawned.mainHandler = self;
+					spawned.vel = (frandom(-5, 5), frandom(-5, 5), frandom(4, 8));
+				}
+			}
+		}
+	}
+	
+	//Stop input if the timer doesn't allow input.
+	override bool InputProcess(InputEvent e) {
+		if (currentTimer) { return !currentTimer.canMove(); }
+		return false;
+	}
+}

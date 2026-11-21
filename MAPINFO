@@ -1,0 +1,11 @@
+GameInfo
+{
+    AddEventHandlers = "SpeedDoomMain"
+}
+
+DamageType TimeOut
+{
+    NoArmor
+	ReplaceFactor
+	Obituary = "%o was too slow at completing the level!"
+}
