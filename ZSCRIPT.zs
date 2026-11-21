@@ -36,13 +36,16 @@ class SpeedDoomMain : EventHandler {
 		//Determine level time and if we should spawn clocks,
 		//If we don't have a proper ParTime just do 1:30 per level.
 		if (level.ParTime != 0) {
-			levelTime = max(level.ParTime + CVar.GetCVar("speedDoomII_TimeMod").GetInt(), 10);
+			levelTime = level.ParTime;
 			dropClocks = CVar.GetCVar("speedDoomII_EnemiesDropClocks").GetBool();
 		}
 		else {
 			levelTime = 90;
 			dropClocks = true;
 		}
+		
+		//Adjust to time modifier
+		levelTime = max(levelTime + CVar.GetCVar("speedDoomII_TimeMod").GetInt(), 10);
 		
 		//Set clock settings
 		clockTimeAdder = CVar.GetCVar("speedDoomII_ClockTimeAdder").GetInt();
